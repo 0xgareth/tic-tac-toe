@@ -6,11 +6,46 @@
 enum { NOUGHTS, CROSSES, BORDER, EMPTY };
 enum { HUMANWIN, COMPWIN, DRAW };
 
+const int Directions[4] = { 1, 5, 4, 6 };
+
 const int ConvertTo25[9] = {
     6, 7, 8,
     11,12,13,
     16,17,18
 };
+
+const int InMiddle = 4;
+const int Corners[4] = { 0, 2, 6, 8 };
+
+int GetNumForDir(int startSq, const int dir, const int *board, const int us) {
+    int found = 0;
+    while (board[startSq] != BORDER) {
+        if(board[startSq] != us) {
+            break;
+        }
+        found++;
+        startSq += dir;
+    }
+    return found;
+}
+
+int FindThreeInARow(const int *board, const int ourindex, const int us) {
+
+    int DirIndex = 0;
+    int Dir = 0;
+    int threeCount = 1;
+
+    for(DirIndex = 0; DirIndex < 4; ++DirIndex) {
+        Dir = Directions[DirIndex];
+        threeCount += GetNumForDir(ourindex + Dir, Dir, board, us);
+        threeCount += GetNumForDir(ourindex + Dir * -1, Dir * -1, board, us);
+        if(threeCount == 3) {
+            break;
+        }
+        threeCount = 1;
+    }
+    return threeCount;
+}
 
 void InitialiseBoard(int *board) {
     int index = 0;
@@ -34,9 +69,85 @@ int HasEmpty(const int *board) {
     return 0; 
 }
 
-
 void MakeMove(int *board, const int sq, const int side) {
     board[sq] = side;
+}
+
+int GetNextBest(const int *board) {
+
+    int ourMove = ConvertTo25[InMiddle];
+    if (board[ourMove] == EMPTY) {
+        return ourMove;
+    }
+
+    int index = 0;
+    ourMove   = -1;
+
+    for(index = 0; index < 4; index++) {
+        ourMove = ConvertTo25[Corners[index]];
+        if (board[ourMove] == EMPTY) {
+            break;
+        }   
+        ourMove = -1;
+    }
+    return ourMove;
+}
+
+int GetWinningMove(int *board, const int side) {
+    
+    int ourMove = -1;
+    int index = 0;
+    int winFound = 0;
+
+    for(index = 0; index < 9; ++index) {
+        if( board[ConvertTo25[index]] == EMPTY) {
+            ourMove = ConvertTo25[index];
+            board[ourMove] = side;
+
+            if(FindThreeInARow(board, ourMove, side) == 3) {
+                winFound = 1;
+            }
+            board[ourMove] = EMPTY;
+            if(winFound == 1) {
+                break;
+            }
+            ourMove = -1;
+        }
+    }
+    return ourMove;
+}
+
+int GetComputerMove(int *board, const int side) {
+    int index = 0;
+    int numFree = 0;
+    int availableMoves[9];
+    int randMove = 0;
+
+    randMove = GetWinningMove(board, side);
+    if(randMove != -1) {
+        return randMove;
+    }
+
+    randMove = GetWinningMove(board, side ^ 1);
+    if(randMove != -1) {
+        return randMove;
+    }
+
+    randMove = GetNextBest(board);
+    if(randMove != -1) {
+        return randMove;
+    }
+
+    randMove = 0;
+    for(index = 0; index < 9; ++index) {
+        if( board[ConvertTo25[index]] == EMPTY) {
+            availableMoves[numFree++] = ConvertTo25[index];
+        }
+    }
+    
+    randMove = (rand() % numFree);
+    return availableMoves[randMove];
+
 }
 
 int GetHumanMove(const int *board) {
@@ -104,17 +215,35 @@ void RunGame() {
     while(!GameOver) {
         if(Side==NOUGHTS) {
             /// get move from human, make move on board, change side
-            GetHumanMove(&board[0]);
+            LastMoveMade = GetHumanMove(&board[0]);
+            MakeMove(&board[0], LastMoveMade, Side);
+            Side=CROSSES;
         } else {
-            // get move from computer, make move on board, change side
+            LastMoveMade = GetComputerMove(&board[0], Side);
+            MakeMove(&board[0], LastMoveMade, Side);
+            Side=NOUGHTS;
             PrintBoard(&board[0]);
         }
+
         // if three in a row exists, Game is over
+        if( FindThreeInARow(board, LastMoveMade, Side ^ 1) == 3) {
+            printf("Game over!\n");
+            GameOver = 1;
+            if(Side==NOUGHTS){
+                printf("Computer wins\n");
+            } else {
+                printf("Human wins\n");
+            }
+        }
 
         // if no more moves, game is drawn
+        if(!HasEmpty(board)) {
+            printf("Game over!\n");
+            GameOver = 1;
+            printf("It's a draw\n");
+        }
     }
-
-    GameOver = 1; // TODO REMOVE ME !!
+    PrintBoard(&board[0]);
 }
 
 int main() {
